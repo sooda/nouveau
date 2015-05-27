@@ -38,6 +38,11 @@ struct nouveau_channel {
 	u32 user_put;
 
 	struct nvif_object *object;
+	struct {
+		struct nouveau_bo *buffer;
+		u32 offset;
+		struct nvif_notify notify;
+	} error_notifier;
 };
 
 

@@ -1037,6 +1037,56 @@ out_next:
 }
 
 int
+nouveau_gem_ioctl_set_error_notifier(struct drm_device *dev, void *data,
+                            struct drm_file *file_priv)
+{
+	struct nouveau_abi16 *abi16 = nouveau_abi16_get(file_priv, dev);
+	struct drm_nouveau_gem_set_error_notifier *req = data;
+	struct nouveau_abi16_chan *abi16_ch;
+	struct nouveau_channel *chan = NULL;
+	struct drm_gem_object *gem;
+	struct nouveau_bo *nvbo;
+	int ret = 0;
+
+	if (unlikely(!abi16))
+		return -ENOMEM;
+
+	list_for_each_entry(abi16_ch, &abi16->channels, head) {
+		if (abi16_ch->chan->object->handle
+				== (NVDRM_CHAN | req->channel)) {
+			chan = abi16_ch->chan;
+			break;
+		}
+	}
+	if (!chan)
+		return nouveau_abi16_put(abi16, -ENOENT);
+
+	gem = drm_gem_object_lookup(dev, file_priv, req->buffer);
+	if (!gem)
+		return nouveau_abi16_put(abi16, -ENOENT);
+
+	nvbo = nouveau_gem_object(gem);
+
+	ret = nouveau_bo_map(nvbo);
+	if (ret)
+		goto out;
+
+	/* userspace should keep this buf alive */
+	chan->error_notifier.buffer = nvbo;
+	chan->error_notifier.offset = req->offset;
+
+	/* zero any old data */
+	nouveau_bo_wr32(nvbo, req->offset / sizeof(u32) + 0, 0);
+	nouveau_bo_wr32(nvbo, req->offset / sizeof(u32) + 1, 0);
+	nouveau_bo_wr32(nvbo, req->offset / sizeof(u32) + 2, 0);
+	nouveau_bo_wr32(nvbo, req->offset / sizeof(u32) + 3, 0);
+
+out:
+	drm_gem_object_unreference_unlocked(gem);
+	return nouveau_abi16_put(abi16, ret);
+}
+
+int
 nouveau_gem_ioctl_cpu_prep(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv)
 {

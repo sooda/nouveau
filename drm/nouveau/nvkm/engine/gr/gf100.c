@@ -37,6 +37,8 @@
 #include <nvif/class.h>
 #include <nvif/unpack.h>
 
+#include "nouveau_drm.h"
+
 /*******************************************************************************
  * Zero Bandwidth Clear
  ******************************************************************************/
@@ -1174,6 +1176,7 @@ gf100_gr_intr(struct nvkm_subdev *subdev)
 			 class, mthd, data);
 		nv_wr32(priv, 0x400100, 0x00000020);
 		stat &= ~0x00000020;
+		nvkm_fifo_eevent(pfifo, chid, NOUVEAU_GEM_CHANNEL_GR_ERROR_SW_NOTIFY);
 	}
 
 	if (stat & 0x00100000) {
@@ -1184,6 +1187,7 @@ gf100_gr_intr(struct nvkm_subdev *subdev)
 			class, mthd, data);
 		nv_wr32(priv, 0x400100, 0x00100000);
 		stat &= ~0x00100000;
+		nvkm_fifo_eevent(pfifo, chid, NOUVEAU_GEM_CHANNEL_GR_ERROR_SW_NOTIFY);
 	}
 
 	if (stat & 0x00200000) {

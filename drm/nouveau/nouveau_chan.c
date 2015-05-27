@@ -24,6 +24,8 @@
 
 #include <nvif/os.h>
 #include <nvif/class.h>
+#include <nvif/notify.h>
+#include <nvif/event.h>
 
 /*XXX*/
 #include <core/client.h>
@@ -59,6 +61,30 @@ nouveau_channel_idle(struct nouveau_channel *chan)
 }
 
 void
+nouveau_channel_set_error_notifier(struct nouveau_channel *chan, u32 error)
+{
+	struct nouveau_cli *cli = (void *)nvif_client(chan->object);
+	struct nouveau_bo *nvbo = chan->error_notifier.buffer;
+	u32 off = chan->error_notifier.offset / sizeof(u32);
+	struct timespec time_data;
+	u64 nsec;
+
+	if (!nvbo)
+		return;
+
+	getnstimeofday(&time_data);
+	nsec = ((u64)time_data.tv_sec) * 1000000000u +
+		(u64)time_data.tv_nsec;
+
+	nouveau_bo_wr32(nvbo, off + 0, nsec);
+	nouveau_bo_wr32(nvbo, off + 1, nsec >> 32);
+	nouveau_bo_wr32(nvbo, off + 2, error);
+	nouveau_bo_wr32(nvbo, off + 3, 0xffffffff);
+	NV_PRINTK(error, cli, "error notifier set to %d for ch %d\n",
+			error, chan->chid);
+}
+
+void
 nouveau_channel_del(struct nouveau_channel **pchan)
 {
 	struct nouveau_channel *chan = *pchan;
@@ -77,6 +103,9 @@ nouveau_channel_del(struct nouveau_channel **pchan)
 		if (chan->push.buffer && chan->push.buffer->pin_refcnt)
 			nouveau_bo_unpin(chan->push.buffer);
 		nouveau_bo_ref(NULL, &chan->push.buffer);
+		if (chan->error_notifier.buffer)
+			nouveau_bo_unmap(chan->error_notifier.buffer);
+		nvif_notify_fini(&chan->error_notifier.notify);
 		nvif_device_ref(NULL, &chan->device);
 		kfree(chan);
 	}
@@ -278,6 +307,17 @@ nouveau_channel_dma(struct nouveau_drm *drm, struct nvif_device *device,
 }
 
 static int
+nouveau_chan_eevent_handler(struct nvif_notify *notify)
+{
+	struct nouveau_channel *chan =
+		container_of(notify, typeof(*chan), error_notifier.notify);
+	const struct nvif_notify_eevent_rep *rep = notify->data;
+
+	WARN_ON(rep->chid != chan->chid);
+	nouveau_channel_set_error_notifier(chan, rep->error);
+	return NVIF_NOTIFY_KEEP;
+}
+static int
 nouveau_channel_init(struct nouveau_channel *chan, u32 vram, u32 gart)
 {
 	struct nvif_device *device = chan->device;
@@ -385,6 +425,20 @@ nouveau_channel_init(struct nouveau_channel *chan, u32 vram, u32 gart)
 		OUT_RING  (chan, chan->nvsw.handle);
 		FIRE_RING (chan);
 	}
+
+	/* error code events on why we're stuck/broken */
+	ret = nvif_notify_init(chan->object, NULL,
+			 nouveau_chan_eevent_handler, false,
+			 CHANNEL_GPFIFO_ERROR_NOTIFIER_EEVENT,
+			 &(struct nvif_notify_eevent_req) { .chid = chan->chid },
+			 sizeof(struct nvif_notify_eevent_req),
+			 sizeof(struct nvif_notify_eevent_rep),
+			 &chan->error_notifier.notify);
+	WARN_ON(ret);
+	if (ret)
+		return ret;
+	/* fini() does one put() */
+	nvif_notify_get(&chan->error_notifier.notify);
 
 	/* initialise synchronisation */
 	return nouveau_fence(chan->drm)->context_new(chan);
