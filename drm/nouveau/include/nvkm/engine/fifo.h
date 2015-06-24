@@ -121,7 +121,7 @@ extern struct nvkm_oclass *gm20b_fifo_oclass;
 
 int  nvkm_fifo_uevent_ctor(struct nvkm_object *, void *, u32,
 			   struct nvkm_notify *);
-void nvkm_fifo_uevent(struct nvkm_fifo *);
+void nvkm_fifo_uevent(struct nvkm_fifo *, u32 force_chid);
 
 void nv04_fifo_intr(struct nvkm_subdev *);
 int  nv04_fifo_context_attach(struct nvkm_object *, struct nvkm_object *);

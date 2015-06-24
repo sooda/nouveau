@@ -124,16 +124,18 @@ nouveau_fence_context_free(struct nouveau_fence_chan *fctx)
 }
 
 static int
-nouveau_fence_update(struct nouveau_channel *chan, struct nouveau_fence_chan *fctx)
+nouveau_fence_update(struct nouveau_channel *chan,
+		struct nouveau_fence_chan *fctx, u32 force_chid)
 {
 	struct nouveau_fence *fence;
 	int drop = 0;
 	u32 seq = fctx->read(chan);
+	bool force = force_chid == chan->chid;
 
 	while (!list_empty(&fctx->pending)) {
 		fence = list_entry(fctx->pending.next, typeof(*fence), head);
 
-		if ((int)(seq - fence->base.seqno) < 0)
+		if ((int)(seq - fence->base.seqno) < 0 && !force)
 			break;
 
 		drop |= nouveau_fence_signal(fence);
@@ -147,6 +149,7 @@ nouveau_fence_wait_uevent_handler(struct nvif_notify *notify)
 {
 	struct nouveau_fence_chan *fctx =
 		container_of(notify, typeof(*fctx), notify);
+	const struct nvif_notify_uevent_rep *rep = notify->data;
 	unsigned long flags;
 	int ret = NVIF_NOTIFY_KEEP;
 
@@ -157,7 +160,7 @@ nouveau_fence_wait_uevent_handler(struct nvif_notify *notify)
 
 		fence = list_entry(fctx->pending.next, typeof(*fence), head);
 		chan = rcu_dereference_protected(fence->channel, lockdep_is_held(&fctx->lock));
-		if (nouveau_fence_update(fence->channel, fctx))
+		if (nouveau_fence_update(fence->channel, fctx, rep->force_chid))
 			ret = NVIF_NOTIFY_DROP;
 	}
 	spin_unlock_irqrestore(&fctx->lock, flags);
@@ -279,7 +282,7 @@ nouveau_fence_emit(struct nouveau_fence *fence, struct nouveau_channel *chan)
 		fence_get(&fence->base);
 		spin_lock_irq(&fctx->lock);
 
-		if (nouveau_fence_update(chan, fctx))
+		if (nouveau_fence_update(chan, fctx, -1))
 			nvif_notify_put(&fctx->notify);
 
 		list_add_tail(&fence->head, &fctx->pending);
@@ -303,7 +306,7 @@ nouveau_fence_done(struct nouveau_fence *fence)
 
 		spin_lock_irqsave(&fctx->lock, flags);
 		chan = rcu_dereference_protected(fence->channel, lockdep_is_held(&fctx->lock));
-		if (chan && nouveau_fence_update(chan, fctx))
+		if (chan && nouveau_fence_update(chan, fctx, -1))
 			nvif_notify_put(&fctx->notify);
 		spin_unlock_irqrestore(&fctx->lock, flags);
 	}

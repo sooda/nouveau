@@ -57,6 +57,7 @@ struct nvif_notify_uevent_req {
 
 struct nvif_notify_uevent_rep {
 	/* nvif_notify_rep ... */
+	__u32 force_chid; /* -1 in normal cases to match no chid */
 };
 
 #endif

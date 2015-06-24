@@ -788,6 +788,10 @@ gk104_fifo_intr_fault(struct gk104_fifo_priv *priv, int unit)
 		switch (nv_mclass(object)) {
 		case KEPLER_CHANNEL_GPFIFO_A:
 		case MAXWELL_CHANNEL_GPFIFO_A:
+			// something like this except that i can't get here at all since engctx == NULL in my tests (with gk20a)
+			//
+			// force fences ready since the channel is halted and broken now
+			// nvkm_fifo_uevent(&priv->base, ((gk104_fifo_chan*)object)->base.chid);
 			gk104_fifo_recover(priv, engine, (void *)object);
 			break;
 		}
@@ -858,6 +862,10 @@ gk104_fifo_intr_pbdma_0(struct gk104_fifo_priv *priv, int unit)
 			 unit, chid,
 			 nvkm_client_name_for_fifo_chid(&priv->base, chid),
 			 subc, mthd, data);
+
+		/* pbdma errors make the channel broken, so force fences ready
+		 * (TODO: notify error to userspace) */
+		nvkm_fifo_uevent(&priv->base, chid);
 	}
 
 	nv_wr32(priv, 0x040108 + (unit * 0x2000), stat);
@@ -906,7 +914,7 @@ gk104_fifo_intr_runlist(struct gk104_fifo_priv *priv)
 static void
 gk104_fifo_intr_engine(struct gk104_fifo_priv *priv)
 {
-	nvkm_fifo_uevent(&priv->base);
+	nvkm_fifo_uevent(&priv->base, -1);
 }
 
 static void
