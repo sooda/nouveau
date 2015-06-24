@@ -189,9 +189,10 @@ nvkm_fifo_uevent_ctor(struct nvkm_object *object, void *data, u32 size,
 }
 
 void
-nvkm_fifo_uevent(struct nvkm_fifo *fifo)
+nvkm_fifo_uevent(struct nvkm_fifo *fifo, u32 force_chid)
 {
 	struct nvif_notify_uevent_rep rep = {
+		.force_chid = force_chid
 	};
 	nvkm_event_send(&fifo->uevent, 1, 0, &rep, sizeof(rep));
 }
