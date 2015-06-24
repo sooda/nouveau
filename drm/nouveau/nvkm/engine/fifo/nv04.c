@@ -541,7 +541,7 @@ nv04_fifo_intr(struct nvkm_subdev *subdev)
 
 		if (stat & 0x40000000) {
 			nv_wr32(priv, 0x002100, 0x40000000);
-			nvkm_fifo_uevent(&priv->base);
+			nvkm_fifo_uevent(&priv->base, -1);
 			stat &= ~0x40000000;
 		}
 	}

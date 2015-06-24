@@ -737,7 +737,7 @@ gf100_fifo_intr_engine_unit(struct gf100_fifo_priv *priv, int engn)
 	for (unkn = 0; unkn < 8; unkn++) {
 		u32 ints = (intr >> (unkn * 0x04)) & inte;
 		if (ints & 0x1) {
-			nvkm_fifo_uevent(&priv->base);
+			nvkm_fifo_uevent(&priv->base, -1);
 			ints &= ~1;
 		}
 		if (ints) {
