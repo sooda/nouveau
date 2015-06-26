@@ -38,6 +38,12 @@ struct nouveau_channel {
 	u32 user_put;
 
 	struct nvif_object *object;
+
+	struct {
+		struct nouveau_bo *buffer;
+		u32 offset;
+		struct nvif_notify notify;
+	} error_notifier;
 };
 
 
@@ -46,6 +52,10 @@ int  nouveau_channel_new(struct nouveau_drm *, struct nvif_device *,
 			 struct nouveau_channel **);
 void nouveau_channel_del(struct nouveau_channel **);
 int  nouveau_channel_idle(struct nouveau_channel *);
+struct drm_file;
+int nouveau_channel_init_error_notifier(struct nouveau_channel *chan,
+					struct drm_file *file,
+					u32 handle, u32 offset);
 
 extern int nouveau_vram_pushbuf;
 
